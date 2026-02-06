@@ -49,7 +49,9 @@ public class KiwoomTransactionsClient {
                 .acctNo(acctNo)
                 .strtDt(strtDt)
                 .endDt(endDt)
-                // 국내주식 전용 엔드포인트이므로 gdsTp 미설정
+                .tp("0") // 거래유형: 전체
+                .gdsTp("1") // 상품구분: 국내주식
+                .dmstStexTp("KRX") // 국내거래소구분: 한국거래소
                 .build();
 
         log.info("📤 [kt00015] Request Body - acctNo: '{}', strtDt: '{}', endDt: '{}' (Builder 설정 후)",
