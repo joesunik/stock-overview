@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 @Builder
 public class DailyBalanceDto {
 
+    @JsonProperty("date")
     private String date;           // yyyy-MM-dd
     @JsonProperty("estimated_asset")
     private BigDecimal estimatedAsset;  // 추정자산

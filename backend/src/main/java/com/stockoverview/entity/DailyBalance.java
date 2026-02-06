@@ -40,15 +40,6 @@ public class DailyBalance {
     @Column(name = "profit_rate", length = 20)
     private String profitRate;
 
-    @Column(name = "foreign_stock_amt", precision = 20, scale = 2)
-    private BigDecimal foreignStockAmt; // 해외주식 평가금액
-
-    @Column(name = "futures_amt", precision = 20, scale = 2)
-    private BigDecimal futuresAmt; // 선물 평가금액
-
-    @Column(name = "total_asset_amt", precision = 20, scale = 2)
-    private BigDecimal totalAssetAmt; // 전체 자산
-
     @Column(name = "created_at")
     private Instant createdAt;
 

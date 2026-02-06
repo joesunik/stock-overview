@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 @Builder
 public class MonthlySummaryDto {
 
+    @JsonProperty("year_month")
     private String yearMonth;      // yyyy-MM
     @JsonProperty("start_asset")
     private BigDecimal startAsset;   // 해당 월 첫 영업일 추정자산

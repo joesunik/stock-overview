@@ -8,12 +8,10 @@ import com.stockoverview.dto.MonthlySummaryResponse;
 import com.stockoverview.dto.TransactionDto;
 import com.stockoverview.entity.Account;
 import com.stockoverview.entity.DailyBalance;
-import com.stockoverview.kiwoom.KiwoomAccountProfitClient;
 import com.stockoverview.kiwoom.KiwoomApiException;
 import com.stockoverview.kiwoom.KiwoomDailyBalanceClient;
 import com.stockoverview.kiwoom.KiwoomTransactionsClient;
 import com.stockoverview.kiwoom.dto.Ka01690Response;
-import com.stockoverview.kiwoom.dto.Kt00016Response;
 import com.stockoverview.repository.AccountRepository;
 import com.stockoverview.repository.DailyBalanceRepository;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +42,6 @@ public class AccountService {
     private static final int START_YEAR = 2015;
 
     private final KiwoomDailyBalanceClient dailyBalanceClient;
-    private final KiwoomAccountProfitClient accountProfitClient;
     private final KiwoomTransactionsClient transactionsClient;
     private final AccountRepository accountRepository;
     private final DailyBalanceRepository dailyBalanceRepository;
@@ -130,92 +127,6 @@ public class AccountService {
         fetchAndSaveFromKiwoom(account.getId(), trimmed, start, today);
     }
 
-    @Transactional
-    public void refreshForeignAndFuturesData(String acctNo, LocalDate startDate, LocalDate endDate) {
-        // 필수 파라미터 검증
-        if (acctNo == null || acctNo.isBlank()) {
-            log.error("❌ [refreshForeignAndFuturesData] 계좌번호 누락");
-            throw new IllegalArgumentException("계좌번호는 필수입니다");
-        }
-        if (startDate == null || endDate == null) {
-            log.error("❌ [refreshForeignAndFuturesData] 날짜 파라미터 누락 - startDate: {}, endDate: {}", startDate, endDate);
-            throw new IllegalArgumentException("시작일과 종료일은 필수입니다");
-        }
-
-        log.info("📈 [refreshForeignAndFuturesData] 선물 데이터 갱신 시작 - acctNo: {}, 기간: {} ~ {}", acctNo, startDate, endDate);
-
-        String trimmed = acctNo.trim();
-        Account account = accountRepository.findByAcctNo(trimmed)
-                .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다: " + trimmed));
-
-        if (startDate.isAfter(endDate)) {
-            log.warn("⚠️ 잘못된 날짜 범위 - startDate > endDate");
-            return;
-        }
-
-        List<DailyBalance> existing = dailyBalanceRepository.findByAccountIdAndBalanceDateBetweenOrderByBalanceDateAsc(
-                account.getId(), startDate, endDate);
-
-        List<DailyBalance> toUpdate = new ArrayList<>();
-
-        // 월별 루프: 각 월말 영업일에 kt00016 (선물 수익률) 호출
-        YearMonth startYm = YearMonth.from(startDate);
-        YearMonth endYm = YearMonth.from(endDate);
-
-        for (YearMonth ym = startYm; !ym.isAfter(endYm); ym = ym.plusMonths(1)) {
-            LocalDate lastDay = ym.atEndOfMonth();
-            if (lastDay.isBefore(startDate)) lastDay = startDate;
-            while (lastDay.getDayOfWeek() == DayOfWeek.SATURDAY || lastDay.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                lastDay = lastDay.minusDays(1);
-            }
-            if (lastDay.isBefore(startDate) || lastDay.isAfter(endDate)) continue;
-
-            final LocalDate finalLastDay = lastDay;
-            String qryDt = lastDay.format(API_DATE);
-            DailyBalance existingEntity = existing.stream()
-                    .filter(db -> db.getBalanceDate().equals(finalLastDay))
-                    .findFirst()
-                    .orElse(null);
-
-            try {
-                log.debug("  📈 [{}] 선물 조회", qryDt);
-                Kt00016Response profit = accountProfitClient.fetchAccountProfit(trimmed, qryDt, qryDt);
-
-                if (existingEntity != null) {
-                    // 선물 금액만 업데이트 (해외주식은 ka01690에서 제공)
-                    BigDecimal futuresAmt = parseDecimal(profit != null ? profit.getFutrReplSella() : null);
-
-                    existingEntity.setFuturesAmt(futuresAmt);
-
-                    BigDecimal totalAmt = (existingEntity.getTotalEvltAmt() != null ? existingEntity.getTotalEvltAmt() : BigDecimal.ZERO)
-                            .add(futuresAmt != null ? futuresAmt : BigDecimal.ZERO);
-                    existingEntity.setTotalAssetAmt(totalAmt);
-
-                    toUpdate.add(existingEntity);
-                    log.debug("  ✅ 업데이트 준비 - {} (futures: {})", lastDay, futuresAmt);
-                }
-
-                try {
-                    Thread.sleep(800);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            } catch (KiwoomApiException e) {
-                log.warn("  ⚠️ 선물 조회 실패 - {}: {}", qryDt, e.getMessage());
-            } catch (Exception e) {
-                log.error("  🔴 예상 밖의 오류 - {}", qryDt, e);
-            }
-        }
-
-        if (!toUpdate.isEmpty()) {
-            dailyBalanceRepository.saveAll(toUpdate);
-            log.info("✨ [refreshForeignAndFuturesData] 완료 - 업데이트: {} 건", toUpdate.size());
-        } else {
-            log.info("📭 [refreshForeignAndFuturesData] 완료 - 업데이트할 데이터 없음");
-        }
-    }
-
     /**
      * 월별로 수집: 각 월의 마지막 영업일 1회만 ka01690 호출.
      * 기간 내 월 단위 루프, 해당 월 말 영업일이 startDate 이상 endDate 이하이고 아직 없을 때만 호출.
@@ -270,15 +181,12 @@ public class AccountService {
                     // 1. 국내주식 (ka01690)
                     Ka01690Response domestic = dailyBalanceClient.fetchDailyBalance(acctNo, qryDt);
 
-                    // 2. 선물 (kt00016)
-                    Kt00016Response profit = accountProfitClient.fetchAccountProfit(acctNo, qryDt, qryDt);
-
                     success = true;
 
                     if (domestic.getReturnCode() != null && domestic.getReturnCode() != 0) {
                         log.warn("  ❌ API 오류 (국내주식) - returnCode: {}, message: {}", domestic.getReturnCode(), domestic.getReturnMsg());
                     } else {
-                        DailyBalance entity = mergeAllData(accountId, lastDay, domestic, profit);
+                        DailyBalance entity = mergeAllData(accountId, lastDay, domestic);
                         if (entity != null) {
                             toSave.add(entity);
                             existingDates.add(lastDay);
@@ -327,7 +235,7 @@ public class AccountService {
         }
     }
 
-    private static DailyBalance mergeAllData(Long accountId, LocalDate date, Ka01690Response domestic, Kt00016Response profit) {
+    private static DailyBalance mergeAllData(Long accountId, LocalDate date, Ka01690Response domestic) {
         String dayStkAsst = domestic.getDayStkAsst();
         String dbstBal = domestic.getDbstBal();
         String totEvltAmt = domestic.getTotEvltAmt();
@@ -336,20 +244,13 @@ public class AccountService {
             return null;
         }
 
-        BigDecimal domesticAmt = parseDecimal(totEvltAmt);
-        BigDecimal futuresAmt = parseDecimal(profit != null ? profit.getFutrReplSella() : null);
-        BigDecimal totalAmt = (domesticAmt != null ? domesticAmt : BigDecimal.ZERO)
-                .add(futuresAmt != null ? futuresAmt : BigDecimal.ZERO);
-
         return DailyBalance.builder()
                 .accountId(accountId)
                 .balanceDate(date)
                 .estimatedAsset(parseDecimal(dayStkAsst))
                 .depositBalance(parseDecimal(dbstBal))
-                .totalEvltAmt(domesticAmt)
-                .profitRate(profit != null ? profit.getPrftRt() : domestic.getTotPrftRt())
-                .futuresAmt(futuresAmt)
-                .totalAssetAmt(totalAmt)
+                .totalEvltAmt(parseDecimal(totEvltAmt))
+                .profitRate(domestic.getTotPrftRt())
                 .build();
     }
 

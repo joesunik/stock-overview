@@ -66,13 +66,4 @@ public class AccountController {
         accountService.refreshAccount(acctNo);
         return ResponseEntity.ok(Map.of("message", "새로고침 완료"));
     }
-
-    @PostMapping("/refresh-foreign-futures")
-    public ResponseEntity<Map<String, String>> refreshForeignAndFuturesData(
-            @RequestParam String acctNo,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        accountService.refreshForeignAndFuturesData(acctNo, startDate, endDate);
-        return ResponseEntity.ok(Map.of("message", "해외주식/선물 데이터 갱신 완료"));
-    }
 }
