@@ -2,13 +2,16 @@ package com.stockoverview.service;
 
 import com.stockoverview.dto.AccountDto;
 import com.stockoverview.dto.DailyBalanceDto;
+import com.stockoverview.dto.DepositWithdrawalSummaryDto;
 import com.stockoverview.dto.MonthlySummaryDto;
 import com.stockoverview.dto.MonthlySummaryResponse;
+import com.stockoverview.dto.TransactionDto;
 import com.stockoverview.entity.Account;
 import com.stockoverview.entity.DailyBalance;
 import com.stockoverview.kiwoom.KiwoomAccountProfitClient;
 import com.stockoverview.kiwoom.KiwoomApiException;
 import com.stockoverview.kiwoom.KiwoomDailyBalanceClient;
+import com.stockoverview.kiwoom.KiwoomTransactionsClient;
 import com.stockoverview.kiwoom.dto.Ka01690Response;
 import com.stockoverview.kiwoom.dto.Kt00016Response;
 import com.stockoverview.repository.AccountRepository;
@@ -27,6 +30,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,6 +45,7 @@ public class AccountService {
 
     private final KiwoomDailyBalanceClient dailyBalanceClient;
     private final KiwoomAccountProfitClient accountProfitClient;
+    private final KiwoomTransactionsClient transactionsClient;
     private final AccountRepository accountRepository;
     private final DailyBalanceRepository dailyBalanceRepository;
 
@@ -379,6 +384,94 @@ public class AccountService {
             return new BigDecimal(s.trim().replace(",", ""));
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransactionDto> getTransactions(String acctNo, LocalDate startDate, LocalDate endDate) {
+        String trimmed = acctNo != null ? acctNo.trim() : "";
+        if (trimmed.isEmpty()) {
+            return List.of();
+        }
+
+        String strtDt = startDate.format(API_DATE);
+        String endDt = endDate.format(API_DATE);
+
+        log.info("📋 거래 내역 조회 - acctNo: {}, 기간: {} ~ {}", trimmed, strtDt, endDt);
+
+        try {
+            List<Map<String, Object>> rawTransactions = transactionsClient.fetchTransactions(trimmed, strtDt, endDt);
+
+            return rawTransactions.stream()
+                    .map(this::mapToTransactionDto)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("거래 내역 조회 실패 - {}: {}", trimmed, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private TransactionDto mapToTransactionDto(Map<String, Object> raw) {
+        // API 응답 구조에 따라 매핑 필요 (예상 필드명)
+        String date = (String) raw.getOrDefault("trd_dt", "");
+        String type = (String) raw.getOrDefault("trd_tp", "");
+        String amount = (String) raw.getOrDefault("trd_amt", "0");
+        String remark = (String) raw.getOrDefault("remark", "");
+
+        return TransactionDto.builder()
+                .date(date.length() >= 8 ? date.substring(0, 4) + "-" + date.substring(4, 6) + "-" + date.substring(6, 8) : date)
+                .type(type)
+                .amount(parseDecimal(amount))
+                .remark(remark)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public DepositWithdrawalSummaryDto getDepositWithdrawalSummary(String acctNo, LocalDate startDate, LocalDate endDate) {
+        String trimmed = acctNo != null ? acctNo.trim() : "";
+        if (trimmed.isEmpty()) {
+            return DepositWithdrawalSummaryDto.builder()
+                    .totalDeposit(BigDecimal.ZERO)
+                    .totalWithdrawal(BigDecimal.ZERO)
+                    .build();
+        }
+
+        String strtDt = startDate.format(API_DATE);
+        String endDt = endDate.format(API_DATE);
+
+        log.info("💰 입출금 요약 조회 - acctNo: {}, 기간: {} ~ {}", trimmed, strtDt, endDt);
+
+        try {
+            List<Map<String, Object>> rawTransactions = transactionsClient.fetchTransactions(trimmed, strtDt, endDt);
+
+            BigDecimal totalDeposit = BigDecimal.ZERO;
+            BigDecimal totalWithdrawal = BigDecimal.ZERO;
+
+            for (Map<String, Object> transaction : rawTransactions) {
+                String type = (String) transaction.getOrDefault("trd_tp", "");
+                String amount = (String) transaction.getOrDefault("trd_amt", "0");
+                BigDecimal amountValue = parseDecimal(amount);
+
+                if (amountValue != null) {
+                    // 입금/출금 구분 (실제 API 응답 형식에 맞춰 수정 필요)
+                    if ("입금".equals(type) || "D".equals(type)) {
+                        totalDeposit = totalDeposit.add(amountValue);
+                    } else if ("출금".equals(type) || "W".equals(type)) {
+                        totalWithdrawal = totalWithdrawal.add(amountValue);
+                    }
+                }
+            }
+
+            return DepositWithdrawalSummaryDto.builder()
+                    .totalDeposit(totalDeposit)
+                    .totalWithdrawal(totalWithdrawal)
+                    .build();
+        } catch (Exception e) {
+            log.warn("입출금 요약 조회 실패 - {}: {}", trimmed, e.getMessage());
+            return DepositWithdrawalSummaryDto.builder()
+                    .totalDeposit(BigDecimal.ZERO)
+                    .totalWithdrawal(BigDecimal.ZERO)
+                    .build();
         }
     }
 
