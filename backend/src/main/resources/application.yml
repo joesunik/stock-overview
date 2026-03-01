@@ -1,15 +1,32 @@
 spring:
   application:
-    name: stock-overview
+    name: sso-server
+  # 기본 로그인(Actuator 등)용 계정. SSO 로그인 사용자는 DB에서 로드.
+  security:
+    user:
+      name: user
+      password: password
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    username: ${ORACLE_USER:sso}
+    password: ${ORACLE_PASSWORD:sso}
+    driver-class-name: oracle.jdbc.OracleDriver
   jpa:
     hibernate:
       ddl-auto: update
+    database-platform: org.hibernate.dialect.OracleDialect
     show-sql: false
-  datasource:
-    url: jdbc:mysql://localhost:3306/stock_overview?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
+
+# 로그인 성공 후 OAuth2 authorize 요청이 없을 때 리다이렉트할 프론트 URL
+app:
+  frontend-url: http://localhost:3000/
+  # BFF가 /oauth2/token 호출 시 사용하는 sso-client 평문 시크릿(DB에는 BCrypt로 저장)
+  oauth2:
+    sso-client-secret: secret
 
 server:
   port: 8080
+
+logging:
+  level:
+    org.springframework.security: DEBUG
