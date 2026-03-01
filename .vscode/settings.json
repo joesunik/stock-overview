@@ -1,5 +1,20 @@
 {
-    "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "automatic",
-    "java.debug.settings.onBuildFailureProceed": true
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.debug.settings.onBuildFailureProceed": true,
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/Users/joesunik/Library/Java/JavaVirtualMachines/jbr-21.0.8-3/Contents/Home",
+      "default": true
+    }
+  ],
+  "java.jdt.ls.java.home": "/Users/joesunik/Library/Java/JavaVirtualMachines/jbr-21.0.8-3/Contents/Home",
+  "maven.executable.path": "/Applications/IntelliJ IDEA.app/Contents/plugins/maven/lib/maven3/bin/mvn",
+  "maven.terminal.customEnv": [
+    {
+      "environmentVariable": "MAVEN_OPTS",
+      "value": "-Dmaven.repo.local=/Users/joesunik/.m2/repository -Dstyle.color=always"
+    }
+  ]
 }

@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Maven install (IntelliJ style)",
+      "type": "shell",
+      "command": "sh",
+      "args": [
+        "-c",
+        "'/Applications/IntelliJ IDEA.app/Contents/plugins/maven/lib/maven3/bin/mvn' -Dmaven.repo.local=${env:HOME}/.m2/repository -Dstyle.color=always install -f '${workspaceFolder}/pom.xml'"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
