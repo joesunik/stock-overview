@@ -1,0 +1,46 @@
+---
+description: 코드에 한글 주석을 달아 LLM이 이해하기 쉽게 힌트 제공
+alwaysApply: true
+---
+
+# 한글 주석으로 LLM 이해 힌트 주기
+
+이 프로젝트에서는 **AI(LLM)가 코드를 파악하기 쉽도록** 적당한 한글 주석을 사용한다.
+
+## 적용 원칙
+
+- **클래스/컴포넌트**: 파일 상단 또는 클래스 위에 한 줄로 **역할·목적**을 한글로 적는다.
+- **메서드/함수**: 복잡하거나 비즈니스 의미가 있는 경우 **무슨 일을 하는지** 한글로 요약한다.
+- **블록/분기**: 의도가 바로 안 보이는 로직(조건문, 예외 처리, 설정 등)에는 **왜 이렇게 했는지** 짧게 적는다.
+- **과하지 않게**: 한 줄 한 줄 번역하지 말고, 이해에 도움이 되는 곳에만 간단히 단다.
+
+## 예시 (Java)
+
+```java
+/** SSO 서버 진입점. Spring Boot 기동만 담당. */
+@SpringBootApplication
+public class SsoServerApplication { ... }
+
+/** 인증 코드를 액세스/리프레시 토큰으로 교환 (BFF용). */
+@PostMapping("/exchange")
+public Map<String, Object> exchange(@RequestBody Map<String, String> body) { ... }
+```
+
+## 예시 (JavaScript/React)
+
+```javascript
+// SSO 콜백 후 토큰 저장 및 /domains로 이동, 실패 시 /login으로
+axios.post('/api/auth/exchange', { code, redirectUri }).then(...)
+```
+
+```javascript
+// 세션에 저장된 액세스 토큰으로 API 요청 시 Bearer 자동 부착
+instance.interceptors.request.use((config) => { ... })
+```
+
+## 요약
+
+- **클래스/컴포넌트**: 역할·목적 한 줄.
+- **메서드/함수**: 비즈니스 의미가 있으면 한 줄 요약.
+- **애매한 로직**: 왜 이렇게 했는지 짧은 한글 힌트.
+- 주석은 **한글**로, **간결**하게.
